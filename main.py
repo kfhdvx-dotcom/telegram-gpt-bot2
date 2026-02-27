@@ -1,67 +1,68 @@
-import os
-import requests
-from flask import Flask, request
+import asyncio
+import aiohttp
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import Message
+from aiogram.filters import CommandStart
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+# 🔑 ВСТАВЬ СЮДА СВОИ КЛЮЧИ
+TELEGRAM_TOKEN = "ТВОЙ_TELEGRAM_TOKEN"
+OPENROUTER_API_KEY = "ТВОЙ_OPENROUTER_API_KEY"
 
-app = Flask(__name__)
+# 🔄 Список моделей (если одна не работает — переключаемся)
+MODELS = [
+    "mistralai/mistral-7b-instruct",
+    "openchat/openchat-7b",
+]
 
-# --- Отправка сообщения в Telegram ---
-def send_message(chat_id, text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": chat_id,
-        "text": text
-    }
-    requests.post(url, json=data)
+bot = Bot(token=TELEGRAM_TOKEN)
+dp = Dispatcher()
 
-# --- GPT запрос ---
-def ask_gpt(message):
+async def ask_ai(prompt: str):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://your-site.com",
+        "X-Title": "Telegram AI Bot"
     }
 
-    data = {
-        "model": "mistralai/mistral-7b-instruct",
-        "messages": [
-            {"role": "system", "content": "Ты публичный AI помощник. Отвечай кратко и без форматирования."},
-            {"role": "user", "content": message}
-        ]
-    }
+    for model in MODELS:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ],
+                    },
+                ) as response:
 
-    try:
-        r = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=60
-        )
-        answer = r.json()["choices"][0]["message"]["content"]
-        answer = answer.replace("*", "").replace("#", "")
-        return answer
-    except:
-        return "Ошибка сервера. Попробуйте позже."
+                    if response.status == 200:
+                        data = await response.json()
+                        return data["choices"][0]["message"]["content"]
+                    else:
+                        print(f"Модель {model} не работает, пробуем следующую...")
 
-# --- Webhook ---
-@app.route("/", methods=["GET"])
-def home():
-    return "Bot is running"
+        except Exception as e:
+            print(f"Ошибка модели {model}: {e}")
 
-@app.route("/", methods=["POST"])
-def webhook():
-    data = request.json
+    return "❌ Все модели сейчас недоступны. Попробуй позже."
 
-    if "message" in data:
-        chat_id = data["message"]["chat"]["id"]
-        text = data["message"].get("text")
+@dp.message(CommandStart())
+async def start(message: Message):
+    await message.answer("Привет! Я AI бот 🤖 Напиши мне что-нибудь.")
 
-        if text:
-            answer = ask_gpt(text)
-            send_message(chat_id, answer)
+@dp.message()
+async def chat(message: Message):
+    await message.answer("⏳ Думаю...")
+    answer = await ask_ai(message.text)
+    await message.answer(answer)
 
-    return "ok"
+async def main():
+    print("Бот запущен...")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    asyncio.run(main())

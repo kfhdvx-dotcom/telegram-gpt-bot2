@@ -5,8 +5,8 @@ from aiogram.types import Message
 from aiogram.filters import CommandStart
 
 # 🔑 ВСТАВЬ СЮДА СВОИ КЛЮЧИ
-TELEGRAM_TOKEN = "ТВОЙ_TELEGRAM_TOKEN"
-OPENROUTER_API_KEY = "ТВОЙ_OPENROUTER_API_KEY"
+TELEGRAM_TOKEN = "8286001096:AAGvFbDHxkWBMusV4E3_jCu7HpQkqpu2xrs"
+OPENROUTER_API_KEY = "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"
 
 # 🔄 Список моделей (если одна не работает — переключаемся)
 MODELS = [
